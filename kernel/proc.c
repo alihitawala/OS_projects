@@ -407,6 +407,23 @@ kill(int pid)
   return -1;
 }
 
+
+int
+getprocnum(void)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  int count = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNING || p->state == EMBRYO || p->state == SLEEPING
+              || p->state == RUNNABLE || p->state == ZOMBIE) {
+        count++;
+      }
+  }
+  release(&ptable.lock);
+  return count;
+}
+
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
