@@ -5,6 +5,8 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pstat.h"
+#include "sysfunc.h"
 
 struct {
   struct spinlock lock;
@@ -45,6 +47,9 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = LOW_PRIORITY;
+  p->hticks = 0;
+  p->lticks = 0;
   release(&ptable.lock);
 
   // Allocate kernel stack if possible.
@@ -255,7 +260,8 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p,*temp_p;
+  int tick_start, tick_end, tick_count;
 
   for(;;){
     // Enable interrupts on this processor.
@@ -266,14 +272,29 @@ scheduler(void)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
+      temp_p = p;
+      do {
+        if (temp_p->state == RUNNABLE && temp_p->priority == HIGH_PRIORITY)
+          break;
+        temp_p++;
+        if (temp_p == &ptable.proc[NPROC]) // reached the end of the proc table - start from 0
+          temp_p = &ptable.proc[0];
+      } while(temp_p != p);
+      p = temp_p;
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      tick_start = sys_uptime();
       swtch(&cpu->scheduler, proc->context);
+      tick_end = sys_uptime();
+      tick_count = tick_end - tick_start;
+      if (p->priority == HIGH_PRIORITY)
+        p->hticks += tick_count;
+      else
+        p->lticks += tick_count;
       switchkvm();
 
       // Process is done running for now.
@@ -460,4 +481,21 @@ procdump(void)
   }
 }
 
+int getpinfo(struct pstat *result) {
+  if (result == NULL)
+    return -1;
+  struct proc *p;
+  int i=0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++, i++){
+    if(p->state != UNUSED) {
+      result->hticks[i] = p->hticks;
+      result->pid[i] = p->pid;
+      result->inuse[i] = 1;
+      result->lticks[i] = p->lticks;
+    }
+    else
+      result->inuse[i] = 0;
+  }
+  return 0;
+}
 

@@ -5,6 +5,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "sysfunc.h"
+#include "pstat.h"
 
 int
 sys_fork(void)
@@ -56,6 +57,17 @@ sys_sbrk(void)
 }
 
 int
+sys_setpri(void)
+{
+  int priority;
+
+  if(argint(0, &priority) < 0 || priority < LOW_PRIORITY || priority > HIGH_PRIORITY)
+    return -1;
+  proc->priority = priority;
+  return 0;
+}
+
+int
 sys_sleep(void)
 {
   int n;
@@ -93,4 +105,13 @@ int
 sys_getprocs(void)
 {
   return getprocnum();
+}
+
+int
+sys_getpinfo(void)
+{
+  struct pstat *arg;
+  if(argptr(0, (void*)&arg, sizeof(*arg)) < 0)
+    return -1;
+  return getpinfo(arg);
 }

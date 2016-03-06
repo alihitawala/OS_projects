@@ -10,6 +10,8 @@ USER_PROGS := \
 	ln\
 	ls\
 	getprocs\
+	setpri\
+	ps\
 	mkdir\
 	rm\
 	sh\
